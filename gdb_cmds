@@ -1,0 +1,15 @@
+# 连接远程 QEMU GDB stub
+target remote :1234
+
+# 每步执行后自动显示关键寄存器
+display /x $x0
+display /x $x1
+display /x $x2
+display /x $x3
+display /x $x4
+display /x $x5
+display /x $x6
+display /i $pc
+
+# 设置架构
+set architecture aarch64

@@ -1,0 +1,6 @@
+ qemu-system-aarch64 -M virt -cpu cortex-a53 -m 256 -nographic -kernel demo.elf -s -S
+
+ aarch64-linux-gnu-gdb -q demo.elf -ex "target remote :1234"
+
+ # 或使用批处理脚本一键运行
+ aarch64-linux-gnu-gdb -q -batch -x run_gdb demo.elf

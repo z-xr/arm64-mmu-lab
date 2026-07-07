@@ -1,0 +1,26 @@
+set architecture aarch64
+target remote :1234
+
+# 设三个关键断点
+break page_table_ready
+break mmu_enabled
+break *0x4008012c
+
+# 一直跑到 MMU 关闭后的死循环
+continue
+
+# 查看结果
+echo \n========== MMU 实验结果 ==========\n
+echo 结果保存在 0x400C0000 (MMU 已关闭, 物理地址读取):\n
+x/4gx 0x400C0000
+
+echo \n期望值:\n
+echo   [0] = 0xdeadbeef  — identity VA 0x40090000 读取\n
+echo   [1] = 0xdeadbeef  — 非identity VA 0x80090000 读取 (不同VA, 同一PA!)\n
+echo   [2] = 0xcafebabe  — 非identity VA 0x800A0000 读取\n
+echo   [3] = 0xfeedface  — 跨VA写入验证 (非identity写, identity读)\n
+
+echo \n结论:\n
+echo   开启MMU后, 不同虚拟地址通过页表翻译\n
+echo   可以映射到同一物理地址, 证明MMU地址翻译正常工作\n
+quit
