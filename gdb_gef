@@ -1,0 +1,15 @@
+#!/bin/bash
+# 带 gef UI 的 GDB 调试脚本
+# 用法:
+#   终端1: qemu-system-aarch64 -M virt -cpu cortex-a53 -m 256 -nographic -kernel demo.elf -s -S
+#   终端2: ./gdb_gef
+#
+# gef 会自动在顶部显示: 寄存器 / 汇编 / 栈 / 内存
+
+exec aarch64-linux-gnu-gdb -q demo.elf \
+  -iex "set auto-load safe-path /" \
+  -ex "source ~/.gef.py" \
+  -ex "target remote :1234" \
+  -ex "break _start" \
+  -ex "continue" \
+  "$@"

@@ -6,9 +6,10 @@
 
 | 文件 | 作用 |
 |------|------|
-| `demo.S` | ARM64 汇编源码 — MMU 使能前后对比实验 |
+| `demo.S` | ARM64 汇编源码 —— MMU 使能前后对比实验 |
 | `linker.lds` | 链接脚本，代码段放 0x40080000 |
 | `run_gdb` | GDB 批处理脚本，自动设断点、逐条执行并显示寄存器 |
+| `gdb_gef` | GDB + gef 可视化调试启动脚本 |
 | `gdb_cmds` | GDB 交互式命令参考 |
 | `cmd.txt` | QEMU 和 GDB 启动命令速查 |
 
@@ -42,37 +43,92 @@ qemu-system-aarch64 -M virt -cpu cortex-a53 -m 256 -nographic -kernel demo.elf -
 
 ## 连接 GDB 调试
 
-### 方式一：批处理脚本（推荐）
+需要**两个终端**配合。
+
+### 方式一：批处理脚本（一键看结果）
 
 ```bash
-aarch64-linux-gnu-gdb -q -x run_gdb demo.elf
+# 终端1
+qemu-system-aarch64 -M virt -cpu cortex-a53 -m 256 -nographic -kernel demo.elf -s -S
+
+# 终端2
+aarch64-linux-gnu-gdb -q -batch -x run_gdb demo.elf
 ```
 
 ### 方式二：交互式调试
 
-两个终端配合：
-
-**终端 1 — QEMU：**
 ```bash
+# 终端1: QEMU
 qemu-system-aarch64 -M virt -cpu cortex-a53 -m 256 -nographic -kernel demo.elf -s -S
-```
 
-**终端 2 — GDB：**
-```bash
+# 终端2: GDB
 aarch64-linux-gnu-gdb -q demo.elf -ex "target remote :1234"
 ```
 
 GDB 中常用命令：
-```gdb
-break _start          # 在 _start 设断点
-break mmu_enabled     # 在 MMU 使能后设断点
-continue              # 继续执行到下一断点
-si                    # 单步执行一条指令
-p/x $x4              # 打印 x4 寄存器
-display /x $x0        # 每步自动显示 x0
-info registers        # 查看所有通用寄存器
-x/4gx 0x400C0000     # 查看内存（实验结束后结果存在这里）
+
+| 命令 | 作用 | 示例 |
+|------|------|------|
+| `break _start` | 在入口设断点 | — |
+| `break mmu_enabled` | 在 MMU 使能后设断点 | — |
+| `continue` | 继续执行到断点 | — |
+| `si` | 单步执行 1 条指令 | — |
+| `p/x $x0` | 打印寄存器（十六进制） | `p/x $x4` |
+| `display /x $x0` | 每步自动显示寄存器 | `display /x $x4` |
+| `display /i $pc` | 每步显示当前指令 | — |
+| `info registers` | 查看所有通用寄存器 | — |
+| `x/gx <addr>` | 查看 8 字节内存 | `x/gx 0x40090000` |
+| `x/4gx <addr>` | 查看连续 4x8 字节 | `x/4gx 0x400C0000` |
+
+### 方式三：gef 可视化调试（推荐单步调试用）
+
+[gef](https://github.com/hugsy/gef) 提供类 IDE 的可视化界面，每次单步自动刷新**寄存器 + 汇编 + 内存**。
+
+```bash
+# 终端1: 启动 QEMU
+qemu-system-aarch64 -M virt -cpu cortex-a53 -m 256 -nographic -kernel demo.elf -s -S
+
+# 终端2: 启动带 gef 的 GDB
+./gdb_gef
 ```
+
+进入后 gef 自动显示三栏布局：
+
+```
++ registers ---------------------------------------------------+
+| $x0  0x0000000000000000    $x10  0x0000000000000000           |
+| $x1  0x0000000000000000    $x11  0x0000000000000000           |
+| ...                                                           |
++ code ---------------------------------------------------------+
+| -> 0x40080000 <_start>      ldr  x0, [pc, #192]              |
+|    0x40080004 <_start+4>    ldr  x1, [pc, #192]              |
++ stack --------------------------------------------------------+
+| (裸机无栈，此栏为空，可以关掉)                                   |
++---------------------------------------------------------------+
+(gdb)
+```
+
+**gef 常用配置：**
+
+```gdb
+# 关掉无用的 stack 区域，加上 memory 区域（推荐）
+gef config context.layout "regs code memory"
+
+# 设置要监控的内存地址
+gef config memory.page 0x40090000
+
+# 设断点并跑到目标位置
+break mmu_enabled
+continue
+
+# 单步执行，gef 自动刷新所有区域
+si
+si
+```
+
+每次 `si` 后 gef 自动刷新寄存器、代码和内存区域，不需要手动敲 `p/x` 或 `x/gx`。
+
+---
 
 ## 当前实验：MMU 使能前后对比
 
