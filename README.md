@@ -107,20 +107,102 @@ qemu-system-aarch64 -M virt -cpu cortex-a53 -m 256 -nographic -kernel demo.elf -
 aarch64-linux-gnu-gdb -q demo.elf -ex "target remote :1234"
 ```
 
-GDB 中常用命令：
+GDB 三大需求对应三个命令：
 
-| 命令 | 作用 | 示例 |
-|------|------|------|
-| `break _start` | 在入口设断点 | — |
-| `break mmu_enabled` | 在 MMU 使能后设断点 | — |
-| `continue` | 继续执行到断点 | — |
-| `si` | 单步执行 1 条指令 | — |
-| `p/x $x0` | 打印寄存器（十六进制） | `p/x $x4` |
-| `display /x $x0` | 每步自动显示寄存器 | `display /x $x4` |
-| `display /i $pc` | 每步显示当前指令 | — |
-| `info registers` | 查看所有通用寄存器 | — |
-| `x/gx <addr>` | 查看 8 字节内存 | `x/gx 0x40090000` |
-| `x/4gx <addr>` | 查看连续 4x8 字节 | `x/4gx 0x400C0000` |
+#### 需求 1：当前执行到哪条指令、哪个文件哪一行
+
+```gdb
+# 每步自动显示（设置一次，之后每次 si 自动打印）
+display /i $pc
+```
+
+输出示例：
+```
+=> 0x40080004 <_start+4>:  ldr  x1, 0x400800d0
+```
+`=>` 指的是**下一条要执行的指令**，`<_start+4>` 表示相对 `_start` 偏移 4 字节。
+
+#### 需求 2：当前寄存器值
+
+```gdb
+# 每步自动显示关键寄存器（设置一次，之后每次 si 都刷新）
+display /x $x0
+display /x $x1
+display /x $x4
+display /x $x5
+display /x $x8
+
+# 手动查看全部寄存器
+info registers
+```
+
+#### 需求 3：查看内存
+
+```gdb
+# 看 0x40090000 处的 8 字节
+x/gx 0x40090000
+
+# 看连续 4 个 8 字节（实验结束后结果存在 0x400C0000）
+x/4gx 0x400C0000
+
+# 每步自动显示某块内存
+display/4gx 0x400C0000
+```
+
+`x/gx` 格式：`g` = giant（8 字节），`x` = 十六进制。换成 `x/wx` 就是 4 字节。
+
+#### 完整实操示例
+
+```gdb
+# ---- 1. 跳到程序入口 ----
+break _start
+continue
+
+# ---- 2. 配好自动显示（设置一次，之后不用再敲）----
+display /i $pc
+display /x $x0
+display /x $x1
+display /x $x4
+display /x $x5
+
+# ---- 3. 开始单步，每次 si 后自动打印上面所有信息 ----
+si          # 执行 ldr x0, =0x40090000 → x0 变成 0x40090000
+si          # 执行 ldr x1, =0xDEADBEEF → x1 变成 0xdeadbeef
+si          # 执行 str x1, [x0]       → 内存写入
+
+# ---- 4. 手动检查内存写入结果 ----
+x/gx 0x40090000
+# → 0x40090000: 0x00000000deadbeef
+
+# ---- 5. 不想一步步走了，跳到后面 ----
+break mmu_enabled
+continue        # 直接跑到 MMU 使能之后
+
+# ---- 6. 继续单步看 MMU 翻译效果 ----
+si
+si
+
+# ---- 7. 跳到程序末尾看最终结果 ----
+break *0x4008012c
+continue
+x/4gx 0x400C0000
+```
+
+#### 常用命令速查
+
+| 命令 | 作用 |
+|------|------|
+| `break _start` | 在入口设断点 |
+| `break mmu_enabled` | 在 MMU 使能后设断点 |
+| `continue` | 继续执行到下一断点 |
+| `si` | 单步执行 1 条指令 |
+| `display /i $pc` | **每步显示当前指令**（需求 1） |
+| `display /x $x0` | **每步显示 x0 寄存器**（需求 2） |
+| `info registers` | 查看全部寄存器 |
+| `x/gx <addr>` | **查看 8 字节内存**（需求 3） |
+| `x/4gx <addr>` | 查看连续 4×8 字节 |
+
+`display` 只需要设置一次，之后每次 `si` 后 GDB 自动打印，不需要再手敲。
 
 ### 方式三：GDB 自带 TUI 可视化调试
 
