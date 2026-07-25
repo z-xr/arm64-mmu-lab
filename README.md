@@ -2,6 +2,48 @@
 
 用 QEMU + GDB 单步调试 ARM64 汇编指令，当前实验：**MMU 使能前后对比**。
 
+## 快速开始（只需三步）
+
+### 第一步：一次性环境配置
+
+```bash
+# 允许 GDB 自动加载项目目录下的 .gdbinit（否则每次都会报 safe-path 警告）
+echo "set auto-load safe-path /" >> ~/.gdbinit
+```
+
+### 第二步：编译（修改 demo.S 后需要重新编译）
+
+```bash
+aarch64-linux-gnu-as -g -o demo.o demo.S
+aarch64-linux-gnu-ld -T linker.lds -o demo.elf demo.o
+```
+
+### 第三步：启动调试
+
+需要**两个终端**，分别运行：
+
+**终端 1 — 启动 QEMU（模拟 ARM64 CPU）：**
+
+```bash
+cd /home/zhaoxr/share123/qemu_busybox_linux/arm64
+qemu-system-aarch64 -M virt -cpu cortex-a53 -m 256 -nographic -kernel demo.elf -s -S
+```
+
+> 执行后 QEMU 会**卡住不动**，这是正常的——`-S` 参数让 CPU 暂停，等待 GDB 连接。
+
+**终端 2 — 启动 GDB（TUI 可视化模式）：**
+
+```bash
+cd /home/zhaoxr/share123/qemu_busybox_linux/arm64
+aarch64-linux-gnu-gdb -q demo.elf -tui
+```
+
+> `.gdbinit` 会自动完成：连接 QEMU → 在 `_start` 设断点 → 配置寄存器 display → 停在第一条指令。
+
+**进入后直接输入 `si` 开始单步调试**，每次 `si` 寄存器窗口自动刷新。
+
+---
+
 ## 文件说明
 
 | 文件 | 作用 |
