@@ -84,15 +84,32 @@ GDB 中常用命令：
 
 [gef](https://github.com/hugsy/gef) 提供类 IDE 的可视化界面，每次单步自动刷新**寄存器 + 汇编 + 内存**。
 
-```bash
-# 终端1: 启动 QEMU
-qemu-system-aarch64 -M virt -cpu cortex-a53 -m 256 -nographic -kernel demo.elf -s -S
+**启动命令（就是 `gdb_gef` 脚本里的内容，直接敲也一样）：**
 
-# 终端2: 启动带 gef 的 GDB
-./gdb_gef
+```bash
+aarch64-linux-gnu-gdb -q demo.elf \
+  -iex "set auto-load safe-path /" \
+  -ex "source ~/.gef.py" \
+  -ex "target remote :1234" \
+  -ex "break _start" \
+  -ex "continue"
 ```
 
-进入后 gef 自动显示三栏布局：
+**每个参数的含义：**
+
+| 参数 | 含义 |
+|------|------|
+| `-q` | quiet 模式，不打印 GDB 版本和许可证信息 |
+| `demo.elf` | 加载带符号表的 ELF 文件 |
+| `-iex "set auto-load safe-path /"` | 允许加载任意路径的 `.gdbinit` 等配置文件（默认 GDB 出于安全会拒绝） |
+| `-ex "source ~/.gef.py"` | 加载 gef 插件（约 8600 行 Python，扩展 GDB 能力） |
+| `-ex "target remote :1234"` | 连接到 QEMU 的 GDB stub（`-s` 开启的 1234 端口） |
+| `-ex "break _start"` | 在 `_start` 处设断点 |
+| `-ex "continue"` | 继续执行，停在 `_start` 处的断点 |
+
+`-iex` 和 `-ex` 的区别：`-iex` 在加载 ELF 之前执行，`-ex` 在之后执行。`source ~/.gef.py` 必须在连接远程目标前加载好。
+
+**进入后 gef 自动显示三栏布局：**
 
 ```
 + registers ---------------------------------------------------+
