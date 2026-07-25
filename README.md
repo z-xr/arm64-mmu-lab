@@ -9,7 +9,7 @@
 | `demo.S` | ARM64 汇编源码 —— MMU 使能前后对比实验 |
 | `linker.lds` | 链接脚本，代码段放 0x40080000 |
 | `run_gdb` | GDB 批处理脚本，自动设断点、逐条执行并显示寄存器 |
-| `gdb_gef` | GDB + gef 可视化调试启动脚本 |
+| `.gdbinit` | GDB 启动时自动执行的配置（断点、display 等） |
 | `gdb_cmds` | GDB 交互式命令参考 |
 | `cmd.txt` | QEMU 和 GDB 启动命令速查 |
 
@@ -80,70 +80,98 @@ GDB 中常用命令：
 | `x/gx <addr>` | 查看 8 字节内存 | `x/gx 0x40090000` |
 | `x/4gx <addr>` | 查看连续 4x8 字节 | `x/4gx 0x400C0000` |
 
-### 方式三：gef 可视化调试（推荐单步调试用）
+### 方式三：GDB 自带 TUI 可视化调试
 
-[gef](https://github.com/hugsy/gef) 提供类 IDE 的可视化界面，每次单步自动刷新**寄存器 + 汇编 + 内存**。
+GDB 自带 **TUI 模式**（`-tui`），配合 `display` 命令可以实现类似 IDE 的可视化效果，每次单步自动刷新寄存器，不需要任何外部插件。
 
-**启动命令（就是 `gdb_gef` 脚本里的内容，直接敲也一样）：**
+**启动：**
 
 ```bash
-aarch64-linux-gnu-gdb -q demo.elf \
-  -iex "set auto-load safe-path /" \
-  -ex "source ~/.gef.py" \
-  -ex "target remote :1234" \
-  -ex "break _start" \
-  -ex "continue"
+# 终端1: 启动 QEMU
+qemu-system-aarch64 -M virt -cpu cortex-a53 -m 256 -nographic -kernel demo.elf -s -S
+
+# 终端2: TUI 模式启动 GDB（会自动读取 .gdbinit 连接 QEMU、设断点、配 display）
+aarch64-linux-gnu-gdb -q demo.elf -tui
 ```
 
-**每个参数的含义：**
-
-| 参数 | 含义 |
-|------|------|
-| `-q` | quiet 模式，不打印 GDB 版本和许可证信息 |
-| `demo.elf` | 加载带符号表的 ELF 文件 |
-| `-iex "set auto-load safe-path /"` | 允许加载任意路径的 `.gdbinit` 等配置文件（默认 GDB 出于安全会拒绝） |
-| `-ex "source ~/.gef.py"` | 加载 gef 插件（约 8600 行 Python，扩展 GDB 能力） |
-| `-ex "target remote :1234"` | 连接到 QEMU 的 GDB stub（`-s` 开启的 1234 端口） |
-| `-ex "break _start"` | 在 `_start` 处设断点 |
-| `-ex "continue"` | 继续执行，停在 `_start` 处的断点 |
-
-`-iex` 和 `-ex` 的区别：`-iex` 在加载 ELF 之前执行，`-ex` 在之后执行。`source ~/.gef.py` 必须在连接远程目标前加载好。
-
-**进入后 gef 自动显示三栏布局：**
-
-```
-+ registers ---------------------------------------------------+
-| $x0  0x0000000000000000    $x10  0x0000000000000000           |
-| $x1  0x0000000000000000    $x11  0x0000000000000000           |
-| ...                                                           |
-+ code ---------------------------------------------------------+
-| -> 0x40080000 <_start>      ldr  x0, [pc, #192]              |
-|    0x40080004 <_start+4>    ldr  x1, [pc, #192]              |
-+ stack --------------------------------------------------------+
-| (裸机无栈，此栏为空，可以关掉)                                   |
-+---------------------------------------------------------------+
-(gdb)
+注意：如果 GDB 报 "auto-load safe-path" 警告，先执行：
+```bash
+echo "set auto-load safe-path /" >> ~/.gdbinit
 ```
 
-**gef 常用配置：**
+**进入后的界面：**
+
+```
+┌──寄存器窗口 (layout regs)─────────────────────────────────────────────┐
+│ x0   0x40090000    x16  0x0                                           │
+│ x1   0xdeadbeef    x17  0x0                                           │
+│ x2   0x0           x18  0x0                                           │
+│ x3   0x0           ...                                                │
+│ ...                                                                   │
+├──命令窗口─────────────────────────────────────────────────────────────┤
+│ (gdb)                                                                 │
+└───────────────────────────────────────────────────────────────────────┘
+```
+
+每次 `si` 后：
+- 寄存器窗口**自动刷新**，变化的寄存器**高亮**
+- `display` 设定的内容自动打印在命令窗口
+
+**常用 TUI 快捷键：**
+
+| 快捷键 | 作用 |
+|--------|------|
+| `Ctrl-x a` | 切换进入/退出 TUI 模式 |
+| `Ctrl-x 1` | 只显示一个窗口 |
+| `Ctrl-x 2` | 显示两个窗口 |
+| `layout regs` | 切换到寄存器 + 命令窗口 |
+| `layout asm` | 切换到汇编 + 命令窗口 |
+| `layout split` | 源码 + 汇编 + 命令窗口 |
+| `focus cmd` | 焦点切到命令窗口（可以输入命令） |
+| `focus regs` | 焦点切到寄存器窗口（可以上下滚动） |
+| `refresh` | 屏幕花掉时刷新 |
+
+**调试流程：**
 
 ```gdb
-# 关掉无用的 stack 区域，加上 memory 区域（推荐）
-gef config context.layout "regs code memory"
+# .gdbinit 已经帮你连好 QEMU、设好了 display
+# 进入后直接开始单步：
 
-# 设置要监控的内存地址
-gef config memory.page 0x40090000
+si                         # 执行 1 条指令，自动看到寄存器变化
 
-# 设断点并跑到目标位置
-break mmu_enabled
-continue
+# 需要看内存时
+x/gx 0x40090000            # 查看 8 字节内存
 
-# 单步执行，gef 自动刷新所有区域
-si
-si
+# 需要连续跑时
+break mmu_enabled          # 在 MMU 使能后设断点
+continue                   # 跑到断点
 ```
 
-每次 `si` 后 gef 自动刷新寄存器、代码和内存区域，不需要手动敲 `p/x` 或 `x/gx`。
+**TUI 模式下内存怎么观察？**
+
+TUI 没有自带内存窗口，推荐两种方式：
+
+```gdb
+# 1. display 自动显示内存（和寄存器一样，每次 si 自动刷新）
+display/4gx 0x40090000
+
+# 2. 手动查看
+x/4gx 0x40090000           # 4 个 8 字节
+x/8wx 0x40090000           # 8 个 4 字节
+```
+
+**最推荐的 TUI 布局组合：**
+
+```gdb
+# 先 layout regs 看寄存器+源码
+layout regs
+
+# 加上 display 自动显示当前指令和关键内存
+display /i $pc
+display/4gx 0x40090000
+```
+
+这样 `si` 一次就能看到：寄存器变化（TUI 上部） + 当前指令 + 内存值（display 输出）。
 
 ---
 

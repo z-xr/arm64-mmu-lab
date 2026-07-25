@@ -1,16 +1,11 @@
 # === 终端1: QEMU ===
 qemu-system-aarch64 -M virt -cpu cortex-a53 -m 256 -nographic -kernel demo.elf -s -S
 
-# === 终端2: GDB (普通模式) ===
+# === 终端2: GDB 普通交互式 ===
 aarch64-linux-gnu-gdb -q demo.elf -ex "target remote :1234"
 
-# === 终端2: GDB (gef 可视化模式) ===
-aarch64-linux-gnu-gdb -q demo.elf \
-  -iex "set auto-load safe-path /" \
-  -ex "source ~/.gef.py" \
-  -ex "target remote :1234" \
-  -ex "break _start" \
-  -ex "continue"
+# === 终端2: GDB TUI 可视化模式 ===
+aarch64-linux-gnu-gdb -q demo.elf -tui
 
 # === 终端2: 批处理一键看结果 ===
 aarch64-linux-gnu-gdb -q -batch -x run_gdb demo.elf
