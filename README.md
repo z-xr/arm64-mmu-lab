@@ -51,7 +51,7 @@ aarch64-linux-gnu-gdb -q demo.elf -tui
 | `demo.S` | ARM64 汇编源码 —— MMU 使能前后对比实验 |
 | `linker.lds` | 链接脚本，代码段放 0x40080000 |
 | `run_gdb` | GDB 批处理脚本，自动设断点、逐条执行并显示寄存器 |
-| `.gdbinit` | GDB 启动时自动执行的配置（断点、display 等） |
+| `gdb_display` | GDB display 脚本：全寄存器 + 7 个内存区域自动刷新 |
 | `gdb_cmds` | GDB 交互式命令参考 |
 | `cmd.txt` | QEMU 和 GDB 启动命令速查 |
 
@@ -203,6 +203,18 @@ x/4gx 0x400C0000
 | `x/4gx <addr>` | 查看连续 4×8 字节 |
 
 `display` 只需要设置一次，之后每次 `si` 后 GDB 自动打印，不需要再手敲。
+
+#### 一键设置所有 display
+
+不想手动一个个敲 display，可以用预置脚本：
+
+```gdb
+source gdb_display
+```
+
+会一次性设好：32 个通用寄存器（x0-x30）、PC、SP、LR、CPSR，以及 demo.S 涉及的 7 个内存地址（每个地址 32 字节逐字节显示）。之后每次 `si` 全部自动刷新。
+
+> 注意：`$cpsr` 等系统寄存器在交叉编译器 GDB 中可能返回 0，这是 GDB 的限制。程序中通过 `mrs` 读到的系统寄存器值已备份在 x10（原始 TCR）、x11（原始 SCTLR）中，display 可以直接看它们。
 
 ### 方式三：GDB 自带 TUI 可视化调试
 

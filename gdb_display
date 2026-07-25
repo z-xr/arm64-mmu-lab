@@ -1,0 +1,71 @@
+# ==========================================
+# GDB display 脚本: 每次 si 后自动显示全部关键信息
+# 用法: 进入 GDB 后执行  source gdb_display
+# ==========================================
+
+# ---- 当前指令 ----
+display /i $pc
+
+# ---- 通用寄存器 x0-x30 ----
+display /x $x0
+display /x $x1
+display /x $x2
+display /x $x3
+display /x $x4
+display /x $x5
+display /x $x6
+display /x $x7
+display /x $x8
+display /x $x9
+display /x $x10
+display /x $x11
+display /x $x12
+display /x $x13
+display /x $x14
+display /x $x15
+display /x $x16
+display /x $x17
+display /x $x18
+display /x $x19
+display /x $x20
+display /x $x21
+display /x $x22
+display /x $x23
+display /x $x24
+display /x $x25
+display /x $x26
+display /x $x27
+display /x $x28
+display /x $x29
+display /x $x30
+
+# ---- 栈/链接寄存器 ----
+display /x $sp
+display /x $lr
+
+# ---- 系统寄存器 (GDB 8.3 可能不支持, 显示 0 属正常) ----
+display /x $cpsr
+
+# ---- demo.S 涉及的内存地址 (每字节显示, 每个地址 32 字节) ----
+# 0x40090000: marker 1 (0xDEADBEEF)
+display/32bx 0x40090000
+
+# 0x400A0000: marker 2 (0xCAFEBABE)
+display/32bx 0x400A0000
+
+# 0x400B0000: L0 页表
+display/32bx 0x400B0000
+
+# 0x400B1000: L1 页表
+display/32bx 0x400B1000
+
+# 0x400B2000: L2_A identity 页表
+display/32bx 0x400B2000
+
+# 0x400B3000: L2_B non-identity 页表
+display/32bx 0x400B3000
+
+# 0x400C0000: 实验结果
+display/32bx 0x400C0000
+
+echo \n=== display 设置完成, 输入 si 开始单步 ===\n
